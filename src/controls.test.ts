@@ -17,7 +17,7 @@ test("validates requests and keeps serving in order after errors", async () => {
   const input = Readable.from([
     'null\n{"op":"reset","start":[1,2,"3"],"yaw":0}\n',
     '{"op":"step","action":"__proto__"}\n{"op":"reset","start":[1,2,3],"yaw":90}\n',
-    '{"op":"step","action":"run_jump"}',
+    '{"op":"step","action":"idle"}\n{"op":"step","action":"run_jump"}',
   ]);
   const replies: unknown[] = [];
   const output = new Writable({
@@ -35,6 +35,7 @@ test("validates requests and keeps serving in order after errors", async () => {
         return reset;
       },
       async step(buttons) {
+        if (buttons.length === 0) throw new Error("Physics timed out");
         assert.deepEqual(buttons, ["forward", "sprint", "jump"]);
         return [reset, airborne];
       },
@@ -48,6 +49,7 @@ test("validates requests and keeps serving in order after errors", async () => {
     { error: "reset requires a finite [x, y, z] start and yaw" },
     { error: "Unknown action: __proto__" },
     { result: reset },
+    { error: "Physics timed out" },
     { result: [reset, airborne] },
   ]);
 });

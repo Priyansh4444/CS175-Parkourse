@@ -61,7 +61,9 @@ The first command runs lint, type checks, and the bot protocol test. The second 
 2. Add the training loop in [parkour/q_learning.py](parkour/q_learning.py). Turn observations into Q-table keys, update the table during training, and freeze it during evaluation.
 3. Add next-platform selection in [parkour/routing.py](parkour/routing.py) (try a DQN for routing). Give the selected platform to the jump policy.
 
-Each file has TODO comments. The current run commands exercise the controller. Training and evaluation are future work.
+Have Python start `node src/minecraft.ts` as a subprocess and read one JSON reply per request. Use the reset reply as the initial state and the last frame from each step as the next state. See `scripts/smoke.py` for a working subprocess example.
+
+Once the trainer has an entry point, run it from the repo root with `uv run --locked python -m parkour.q_learning`.
 
 ## Scripts
 
