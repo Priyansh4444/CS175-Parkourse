@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 || ! -f "$1" ]]; then
+    printf 'Usage: %s /path/to/minecraft-26.1.2-server.jar\n' "$0" >&2
+    exit 2
+fi
+jar="$(cd -- "$(dirname -- "$1")" && pwd -P)/$(basename -- "$1")"
+port=${PARKOURSE_PORT:-25566}
+if [[ ! "$port" =~ ^[1-9][0-9]{0,4}$ ]] || (( port > 65535 )); then
+    printf 'PARKOURSE_PORT must be a port from 1 to 65535\n' >&2
+    exit 2
+fi
+
+run_dir=${PARKOURSE_RUN_DIR:-"${XDG_DATA_HOME:-"$HOME/.local/share"}/parkourse/server"}
+mkdir -p -- "$run_dir"
+cd -- "$run_dir"
+
+if [[ "${MINECRAFT_EULA:-}" == true ]]; then
+    printf 'eula=true\n' > eula.txt
+fi
+if [[ ! -f eula.txt ]] || ! grep -qx 'eula=true' eula.txt; then
+    printf 'Read https://www.minecraft.net/eula and set MINECRAFT_EULA=true if you accept it.\n' >&2
+    exit 2
+fi
+
+cat > server.properties <<PROPERTIES
+server-ip=127.0.0.1
+server-port=$port
+online-mode=false
+level-name=world
+level-type=minecraft:flat
+gamemode=adventure
+difficulty=peaceful
+spawn-protection=0
+view-distance=5
+simulation-distance=5
+PROPERTIES
+
+if [[ ! -f ops.json ]]; then
+    # Minecraft's offline UUID for ParkourseBot, needed for reset teleports.
+    printf '%s\n' '[{"uuid":"af394c5f-ea7b-3c14-8f98-6d583fa50e33","name":"ParkourseBot","level":2,"bypassesPlayerLimit":false}]' > ops.json
+fi
+
+printf 'Starting Minecraft at 127.0.0.1:%s in %s\n' "$port" "$PWD" >&2
+exec "${JAVA:-java}" -Xmx2G -jar "$jar" nogui
