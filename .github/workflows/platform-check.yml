@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, macos-15-intel]
+        os: [windows-2025]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 22
     steps:
@@ -31,10 +31,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $url = 'https://github.com/pal1000/mesa-dist-win/releases/download/26.2.7/mesa3d-26.2.7-release-msvc.7z'
+          $url = 'https://github.com/pal1000/mesa-dist-win/releases/download/25.2.8/mesa3d-25.2.8-release-msvc.7z'
           curl.exe -fsSL --retry 2 $url -o mesa.7z
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          if ((Get-FileHash mesa.7z).Hash -ne 'e61153fb1a8e58b9d80b403030cda619eaffbddd9ff99b34163b996ead03d596') { throw 'Mesa download hash mismatch' }
+          if ((Get-FileHash mesa.7z).Hash -ne 'e47cfe0be35f0c40c3d488c0e965d10656154ed55cfdfe4f4d79d4395672dc02') { throw 'Mesa download hash mismatch' }
           7z x mesa.7z -omesa
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $dllPath = Join-Path $env:JAVA_HOME 'bin'
