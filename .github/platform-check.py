@@ -56,7 +56,10 @@ def wait_for(file, predicate, process, timeout=100):
     raise RuntimeError(f'Expected Minecraft output was missing in {file.name}')
 
 def start_server(run_dir, log, world=None):
-    args = ['bash', './scripts/headless', jar.as_posix()]
+    bash = 'bash'
+    if sys.platform == 'win32':
+        bash = str(pathlib.Path(os.environ['ProgramFiles']) / 'Git' / 'bin' / 'bash.exe')
+    args = [bash, './scripts/headless', jar.as_posix()]
     if world:
         args.append(world.as_posix())
     run_env = dict(base_env, PARKOURSE_RUN_DIR=run_dir.as_posix())
