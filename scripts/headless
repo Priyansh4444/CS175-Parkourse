@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 || ! -f "$1" ]]; then
-    printf 'Usage: %s /path/to/minecraft-26.1.2-server.jar\n' "$0" >&2
+if [[ $# -lt 1 || $# -gt 2 || ! -f "$1" ]]; then
+    printf 'Usage: %s /path/to/minecraft-26.1.2-server.jar [world-folder]\n' "$0" >&2
     exit 2
 fi
 jar="$(cd -- "$(dirname -- "$1")" && pwd -P)/$(basename -- "$1")"
@@ -12,9 +12,36 @@ if [[ ! "$port" =~ ^[1-9][0-9]{0,4}$ ]] || (( port > 65535 )); then
     exit 2
 fi
 
-run_dir=${PARKOURSE_RUN_DIR:-"${XDG_DATA_HOME:-"$HOME/.local/share"}/parkourse/server"}
+data_dir=${XDG_DATA_HOME:-"$HOME/.local/share"}/parkourse
+default_run_dir=$data_dir/server
+world_source=
+if [[ $# -eq 2 ]]; then
+    if [[ ! -f "$2/level.dat" ]]; then
+        printf 'World folder needs a level.dat file: %s\n' "$2" >&2
+        exit 2
+    fi
+    world_source="$(cd -- "$2" && pwd -P)"
+    default_run_dir="$data_dir/maps/$(basename -- "$world_source")"
+fi
+
+run_dir=${PARKOURSE_RUN_DIR:-$default_run_dir}
+if [[ -n "$world_source" ]]; then
+    ancestor=$run_dir
+    while [[ ! -d "$ancestor" ]]; do
+        ancestor=$(dirname -- "$ancestor")
+    done
+    ancestor="$(cd -- "$ancestor" && pwd -P)"
+    if [[ "$ancestor/" == "$world_source/"* ]]; then
+        printf 'Choose a run directory outside the source world.\n' >&2
+        exit 2
+    fi
+fi
 mkdir -p -- "$run_dir"
-cd -- "$run_dir"
+cd -P -- "$run_dir"
+if [[ -n "$world_source" && "$world_source/" == "$PWD/world/"* ]]; then
+    printf 'Choose a run directory outside the source world.\n' >&2
+    exit 2
+fi
 
 if [[ "${MINECRAFT_EULA:-}" == true ]]; then
     printf 'eula=true\n' > eula.txt
@@ -22,6 +49,30 @@ fi
 if [[ ! -f eula.txt ]] || ! grep -qx 'eula=true' eula.txt; then
     printf 'Read https://www.minecraft.net/eula and set MINECRAFT_EULA=true if you accept it.\n' >&2
     exit 2
+fi
+
+if [[ -n "$world_source" ]]; then
+    if [[ ! -e world && ! -L world ]]; then
+        # Stage the entire save before giving Minecraft the runtime copy.
+        stage=.parkourse-world-import
+        if ! mkdir -- "$stage"; then
+            printf 'Could not stage the world. Check whether another import is in progress.\n' >&2
+            exit 2
+        fi
+        trap 'rm -rf -- "$stage"' EXIT
+        if [[ ! -e world && ! -L world ]]; then
+            cp -R -- "$world_source/." "$stage/"
+            printf '%s\n' "$world_source" > "$stage/.parkourse-source"
+            mv -- "$stage" world
+        else
+            rmdir -- "$stage"
+        fi
+        trap - EXIT
+    fi
+    if [[ -L world || ! -f world/.parkourse-source || "$(cat world/.parkourse-source)" != "$world_source" ]]; then
+        printf 'This run directory already has a different world. Set PARKOURSE_RUN_DIR to a new directory.\n' >&2
+        exit 2
+    fi
 fi
 
 cat > server.properties <<PROPERTIES
