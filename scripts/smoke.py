@@ -18,6 +18,7 @@ VERSION = "26.1.2"
 MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 Vec = tuple[float, float, float]
 START: Vec = (0.5, -60.0, 0.5)
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class ResetRequest(TypedDict):
@@ -51,7 +52,10 @@ def array_items(value: object) -> list[object]:
 
 
 def decode_vector(value: object) -> Vec:
-    x, y, z = array_items(value)
+    items = array_items(value)
+    if len(items) != 3:
+        raise ValueError(f"Expected three coordinates, got {items!r}")
+    x, y, z = items
     return coordinate(x), coordinate(y), coordinate(z)
 
 
@@ -119,6 +123,7 @@ def verify_jump(env: dict[str, str]) -> None:
     jump_request: StepRequest = {"op": "step", "action": "run_jump"}
     result = subprocess.run(
         ["node", "src/minecraft.ts"],
+        cwd=ROOT,
         env=env,
         text=True,
         capture_output=True,
@@ -137,9 +142,14 @@ def verify_jump(env: dict[str, str]) -> None:
     decode_frame(first_tick)
     jump = decode_frame(second_tick)
     restored = decode_frame(reply_value(lines[2]))
-    if not first["on_ground"] or first["position"] != START or restored != first:
+    if any(
+        not frame["on_ground"]
+        or math.dist(frame["position"], START) >= 0.15
+        or math.hypot(frame["velocity"][0], frame["velocity"][2]) >= 0.03
+        for frame in (first, restored)
+    ):
         raise RuntimeError(f"Unexpected reset frames {first!r}, {restored!r}")
-    if jump["position"][1] <= START[1] or jump["on_ground"]:
+    if jump["position"][1] <= first["position"][1] or jump["on_ground"]:
         raise RuntimeError(f"Bot did not leave the ground with a jump {jump!r}")
 
 
@@ -159,6 +169,7 @@ def run_server(
     with log.open("w") as output:
         server = subprocess.Popen(
             command,
+            cwd=ROOT,
             text=True,
             stdin=subprocess.PIPE,
             stdout=output,

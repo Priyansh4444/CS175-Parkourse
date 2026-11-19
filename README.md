@@ -19,7 +19,7 @@ uv sync --locked --python 3.11
 
 ## Run a course map
 
-Unzip `maps.zip` outside the repo. Pass the closed world folder containing `level.dat` to the server.
+Get the shared `maps.zip` from the project team and unzip it outside the repo. Pass the closed world folder containing `level.dat` to the server.
 
 ```sh
 unzip /path/to/maps.zip -d "$HOME/parkourse-maps"
@@ -36,7 +36,7 @@ Wait for `Done`, then run `node src/minecraft.ts` in another terminal. Paste the
 
 Paste `{"op":"step","action":"run_jump"}` to test one action. The bot takes actions you send it. Routing is a TODO.
 
-Each action runs for two ticks and returns position, velocity, and ground contact for each tick. The actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, and `sneak`.
+Each action returns two client physics frames with position in blocks, velocity in blocks per tick, and ground contact. Replies are JSON lines on stdout with either a `result` or an `error`. Reset settles within 0.15 blocks of the start. The actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, and `sneak`.
 
 The headless server runs without a game window and plays on a copy of the map. Set `JAVA` to your Java 25 binary if needed. Set `PARKOURSE_RUN_DIR` to an unused folder for a fresh copy. Set `PARKOURSE_PORT` in each terminal to change the default port. Type `stop` in the server console before switching maps.
 

@@ -88,10 +88,23 @@ view-distance=5
 simulation-distance=5
 PROPERTIES
 
-if [[ ! -f ops.json ]]; then
-    # Minecraft's offline UUID for ParkourseBot, needed for reset teleports.
-    printf '%s\n' '[{"uuid":"af394c5f-ea7b-3c14-8f98-6d583fa50e33","name":"ParkourseBot","level":2,"bypassesPlayerLimit":false}]' > ops.json
-fi
+# Preserve existing operators while granting the bot permission to reset.
+node --input-type=module <<'JS'
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+
+const path = "ops.json";
+const operators = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : [];
+if (!Array.isArray(operators)) throw new Error("ops.json must contain an array");
+
+const uuid = "af394c5f-ea7b-3c14-8f98-6d583fa50e33";
+const existing = operators.find((entry) => entry?.uuid === uuid);
+if (!existing || existing.level < 2 || !Number.isInteger(existing.level)) {
+  const bot = { uuid, name: "ParkourseBot", level: 2, bypassesPlayerLimit: false };
+  const updated = [...operators.filter((entry) => entry?.uuid !== uuid), bot];
+  writeFileSync("ops.json.parkourse.tmp", JSON.stringify(updated) + "\n");
+  renameSync("ops.json.parkourse.tmp", path);
+}
+JS
 
 printf 'Starting Minecraft at 127.0.0.1:%s in %s\n' "$port" "$PWD" >&2
 exec "${JAVA:-java}" -Xmx2G -jar "$jar" nogui
