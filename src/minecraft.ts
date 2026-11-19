@@ -1,5 +1,5 @@
 import mineflayer from "mineflayer";
-import { serve, type Frame } from "./controls.ts";
+import { type ActionFrames, type Frame, serve } from "./controls.ts";
 
 const port = Number(process.env.PARKOURSE_PORT ?? "25566");
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -38,7 +38,7 @@ function frame(): Frame {
   };
 }
 
-function runPhysics(finished: () => boolean): Promise<void> {
+function runPhysics<T>(sample: () => T | undefined): Promise<T> {
   return new Promise((resolve, reject) => {
     const stop = () => {
       bot.physicsEnabled = false;
@@ -47,13 +47,23 @@ function runPhysics(finished: () => boolean): Promise<void> {
       clearTimeout(timeout);
     };
     const onTick = () => {
-      if (!finished()) return;
-      stop();
-      resolve();
+      try {
+        const result = sample();
+        if (result === undefined) return;
+        stop();
+        resolve(result);
+      } catch (error) {
+        stop();
+        reject(error);
+      }
     };
     const timeout = setTimeout(() => {
       stop();
-      reject(new Error("Minecraft physics timed out. Check the server and start coordinates."));
+      reject(
+        new Error(
+          "Minecraft physics timed out. Check the server and start coordinates.",
+        ),
+      );
     }, 5000);
     bot.on("physicsTick", onTick);
     bot.physicsEnabled = true;
@@ -86,25 +96,40 @@ try {
       let stillTicks = 0;
       const settled = runPhysics(() => {
         const { position, velocity, onGround } = bot.entity;
-        const nearStart = Math.hypot(position.x - x, position.y - y, position.z - z) < 0.15;
+        const nearStart =
+          Math.hypot(position.x - x, position.y - y, position.z - z) < 0.15;
         const still = Math.hypot(velocity.x, velocity.z) < 0.03;
-        stillTicks = corrections > before && onGround && nearStart && still ? stillTicks + 1 : 0;
-        return stillTicks === 2;
+        stillTicks =
+          corrections > before && onGround && nearStart && still
+            ? stillTicks + 1
+            : 0;
+        return stillTicks === 2 ? frame() : undefined;
       });
 
       bot.chat(`/tp @s ${x} ${y} ${z} ${yaw} 0`);
-      await settled;
+      const resetFrame = await settled;
       lastReset = corrections;
-      return frame();
+      return resetFrame;
     },
 
-    async step(buttons, ticks) {
-      if (corrections !== lastReset) throw new Error("Minecraft corrected the bot's position. Reset before continuing.");
-      const frames: Frame[] = [];
+    async step(buttons) {
+      if (corrections !== lastReset) {
+        throw new Error(
+          "Minecraft corrected the bot's position. Reset before continuing.",
+        );
+      }
       for (const button of buttons) bot.setControlState(button, true);
-      await runPhysics(() => frames.push(frame()) === ticks);
-      if (corrections !== lastReset) throw new Error("Minecraft corrected the bot's position. Reset before continuing.");
-      return frames;
+      let first: Frame | undefined;
+      return runPhysics<ActionFrames>(() => {
+        if (corrections !== lastReset) {
+          throw new Error(
+            "Minecraft corrected the bot's position. Reset before continuing.",
+          );
+        }
+        const current = frame();
+        if (first !== undefined) return [first, current];
+        first = current;
+      });
     },
   });
 } finally {

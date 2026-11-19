@@ -2,45 +2,88 @@
 
 import hashlib
 import json
+import math
 import os
 import socket
 import subprocess
 import sys
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 from urllib.request import urlopen
 
 VERSION = "26.1.2"
 MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-START = [0.5, -60.0, 0.5]
+Vec = tuple[float, float, float]
+START: Vec = (0.5, -60.0, 0.5)
 
 
-class Download(TypedDict):
-    url: str
-    sha1: str
+class ResetRequest(TypedDict):
+    op: Literal["reset"]
+    start: Vec
+    yaw: float
 
 
-class VersionEntry(Download):
-    id: str
-
-
-class Manifest(TypedDict):
-    versions: list[VersionEntry]
-
-
-class Version(TypedDict):
-    downloads: dict[str, Download]
+class StepRequest(TypedDict):
+    op: Literal["step"]
+    action: Literal["run_jump"]
 
 
 class Frame(TypedDict):
-    position: list[float]
+    position: Vec
+    velocity: Vec
     on_ground: bool
 
 
-class Reply(TypedDict):
-    result: Frame | list[Frame]
+def object_fields(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Expected a JSON object, got {value!r}")
+    # All object keys from json.loads are strings.
+    return cast(dict[str, object], value)
+
+
+def array_items(value: object) -> list[object]:
+    if not isinstance(value, list):
+        raise ValueError(f"Expected a JSON array, got {value!r}")
+    return cast(list[object], value)
+
+
+def decode_vector(value: object) -> Vec:
+    x, y, z = array_items(value)
+    return coordinate(x), coordinate(y), coordinate(z)
+
+
+def coordinate(value: object) -> float:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(value)
+    ):
+        raise ValueError(f"Expected a finite coordinate, got {value!r}")
+    return float(value)
+
+
+def decode_frame(value: object) -> Frame:
+    fields = object_fields(value)
+    on_ground = fields.get("on_ground")
+    if not isinstance(on_ground, bool):
+        raise ValueError(f"Expected a boolean on_ground, got {on_ground!r}")
+    return {
+        "position": decode_vector(fields.get("position")),
+        "velocity": decode_vector(fields.get("velocity")),
+        "on_ground": on_ground,
+    }
+
+
+def reply_value(line: str) -> object:
+    response = object_fields(json.loads(line))
+    if "result" not in response:
+        raise RuntimeError(
+            f"Bot request failed with {response.get('error', response)!r}"
+        )
+    return response["result"]
 
 
 def download(url: str, sha1: str | None = None) -> bytes:
@@ -51,30 +94,53 @@ def download(url: str, sha1: str | None = None) -> bytes:
     return data
 
 
+def download_entry(entry: dict[str, object]) -> bytes:
+    url = entry.get("url")
+    checksum = entry.get("sha1")
+    if not isinstance(url, str) or not isinstance(checksum, str):
+        raise ValueError("Mojang download entry must include a URL and SHA-1")
+    return download(url, checksum)
+
+
 def download_server(jar: Path) -> None:
-    manifest = cast(Manifest, json.loads(download(MANIFEST)))
-    entry = next(item for item in manifest["versions"] if item["id"] == VERSION)
-    metadata = cast(Version, json.loads(download(entry["url"], entry["sha1"])))
-    server = metadata["downloads"]["server"]
-    jar.write_bytes(download(server["url"], server["sha1"]))
+    manifest = object_fields(json.loads(download(MANIFEST)))
+    for raw in array_items(manifest.get("versions")):
+        entry = object_fields(raw)
+        if entry.get("id") == VERSION:
+            metadata = object_fields(json.loads(download_entry(entry)))
+            downloads = object_fields(metadata.get("downloads"))
+            jar.write_bytes(download_entry(object_fields(downloads.get("server"))))
+            return
+    raise RuntimeError(f"Minecraft {VERSION} was not in Mojang's manifest")
 
 
 def verify_jump(env: dict[str, str]) -> None:
-    reset = {"op": "reset", "start": START, "yaw": 0}
-    messages = [reset, {"op": "step", "action": "run_jump"}, reset]
+    reset: ResetRequest = {"op": "reset", "start": START, "yaw": 0}
+    jump_request: StepRequest = {"op": "step", "action": "run_jump"}
     result = subprocess.run(
-        ["node", "src/minecraft.ts"], env=env, text=True, capture_output=True,
-        input="".join(json.dumps(message) + "\n" for message in messages), timeout=30,
+        ["node", "src/minecraft.ts"],
+        env=env,
+        text=True,
+        capture_output=True,
+        input="".join(
+            json.dumps(message) + "\n" for message in (reset, jump_request, reset)
+        ),
+        timeout=30,
     )
     if result.returncode:
         raise RuntimeError(result.stderr)
-    first, jump, restored = [
-        cast(Reply, json.loads(line))["result"] for line in result.stdout.splitlines()
-    ]
-    assert isinstance(first, dict) and first["on_ground"], first
-    assert isinstance(jump, list) and len(jump) == 2, jump
-    assert jump[-1]["position"][1] > START[1] and not jump[-1]["on_ground"], jump
-    assert first == restored, restored
+    lines = result.stdout.splitlines()
+    if len(lines) != 3:
+        raise RuntimeError(f"Expected three bot replies, got {lines!r}")
+    first = decode_frame(reply_value(lines[0]))
+    first_tick, second_tick = array_items(reply_value(lines[1]))
+    decode_frame(first_tick)
+    jump = decode_frame(second_tick)
+    restored = decode_frame(reply_value(lines[2]))
+    if not first["on_ground"] or first["position"] != START or restored != first:
+        raise RuntimeError(f"Unexpected reset frames {first!r}, {restored!r}")
+    if jump["position"][1] <= START[1] or jump["on_ground"]:
+        raise RuntimeError(f"Bot did not leave the ground with a jump {jump!r}")
 
 
 def run_server(
@@ -92,8 +158,12 @@ def run_server(
     log = runtime.with_suffix(".log")
     with log.open("w") as output:
         server = subprocess.Popen(
-            command, text=True, stdin=subprocess.PIPE, stdout=output,
-            stderr=subprocess.STDOUT, env=dict(env, PARKOURSE_RUN_DIR=runtime.as_posix()),
+            command,
+            text=True,
+            stdin=subprocess.PIPE,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            env=dict(env, PARKOURSE_RUN_DIR=runtime.as_posix()),
         )
         try:
             deadline = time.monotonic() + 90
@@ -109,8 +179,9 @@ def run_server(
         finally:
             try:
                 if server.poll() is None and server.stdin is not None:
-                    server.stdin.write("stop\n")
-                    server.stdin.flush()
+                    with suppress(BrokenPipeError):
+                        server.stdin.write("stop\n")
+                        server.stdin.flush()
                 server.communicate(timeout=25)
             except subprocess.TimeoutExpired:
                 server.kill()
@@ -119,7 +190,11 @@ def run_server(
 
 def main() -> None:
     if os.environ.get("MINECRAFT_EULA") != "true":
-        raise SystemExit("Read https://www.minecraft.net/eula and set MINECRAFT_EULA=true if you accept it.")
+        raise SystemExit(
+            "Read https://www.minecraft.net/eula and set MINECRAFT_EULA=true if you accept it."
+        )
+    if len(sys.argv) > 2:
+        raise SystemExit("Usage: uv run --locked python scripts/smoke.py [server.jar]")
     with tempfile.TemporaryDirectory(prefix="parkourse-smoke-") as directory:
         root = Path(directory).resolve()
         jar = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "server.jar"
@@ -135,7 +210,8 @@ def main() -> None:
         world = root / "source/world"
         original = (world / "level.dat").read_bytes()
         run_server(jar, root / "world copy", env, world)
-        assert (world / "level.dat").read_bytes() == original, "Source world changed"
+        if (world / "level.dat").read_bytes() != original:
+            raise RuntimeError("Source world changed")
         print("Loaded a copy of a Minecraft save, jumped for two ticks, and reset.")
 
 

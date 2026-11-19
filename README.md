@@ -7,10 +7,15 @@ A CS 175 project on learning to time Minecraft parkour jumps.
 Use Bash on Linux or macOS, or Git Bash on Windows. Install these tools.
 
 - [Node.js 22.18+ with npm](https://nodejs.org/en/download)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) for the Python smoke test
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python tools and the smoke test
 - Java 25 and the [Minecraft Java 26.1.2 server JAR](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1-2)
 
-Run `npm ci` from the repo root.
+From the repo root, install the locked dependencies.
+
+```sh
+npm ci
+uv sync --locked --python 3.11
+```
 
 ## Run a course map
 
@@ -41,23 +46,29 @@ Join `127.0.0.1:25566` in Minecraft Java 26.1.2, or launch a configured [Prism i
 
 Keep the bot terminal open. In the server console, run `gamemode spectator YourName` to fly around, then `spectate ParkourseBot YourName` to follow the bot.
 
-## Checks
+## Test it
 
 ```sh
 npm run check
-MINECRAFT_EULA=true uv run --no-project --python 3.11 python scripts/smoke.py /path/to/server.jar
+MINECRAFT_EULA=true uv run --locked python scripts/smoke.py /path/to/server.jar
 ```
 
-GitHub Actions runs the TypeScript and Python checks and tests headless Minecraft on Linux, macOS, and Windows.
+The first command runs lint, type checks, and the bot protocol test. The second starts a disposable Minecraft server, tests a jump, and checks that reset restores the starting position. CI runs the smoke test on Linux, macOS, and Windows.
 
-## TODO
+## Where to add training
 
-- Define the core reward math and when an episode ends.
-- Select the learning observations, implement Q-learning, and evaluate on held-out jumps and courses.
-- Add routing between platforms (try a DQN for routing).
+1. Add episode endings and the core reward math in [parkour/rewards.py](parkour/rewards.py). Start with the previous state, action, next state, and target platform.
+2. Add the training loop in [parkour/q_learning.py](parkour/q_learning.py). Turn observations into Q-table keys, update the table during training, and freeze it during evaluation.
+3. Add next-platform selection in [parkour/routing.py](parkour/routing.py) (try a DQN for routing). Give the selected platform to the jump policy.
 
-## Layout
+Each file has TODO comments. The current run commands exercise the controller. Training and evaluation are future work.
 
-- `src/` contains the input code and bot.
-- `scripts/` contains the launchers and smoke test.
-- `.github/workflows/ci.yml` defines CI.
+## Scripts
+
+| Entry point | What it does |
+| --- | --- |
+| `scripts/headless` | Starts the local server and optionally copies in a map |
+| `scripts/headful` | Opens a Prism client on that server |
+| `node src/minecraft.ts` | Reads reset and movement requests and returns raw player state |
+| `scripts/smoke.py` | Checks the world copy, jump, and reset in a disposable server |
+| `npm run check` | Runs lint, strict type checks, and the protocol test |

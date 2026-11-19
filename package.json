@@ -9,11 +9,14 @@
     "mineflayer": "4.39.0"
   },
   "scripts": {
-    "check": "npm run check:ts && npm run check:python",
+    "check": "npm run lint && npm run check:ts && npm run check:python && npm test",
     "check:ts": "tsc --noEmit",
-    "check:python": "pyright"
+    "check:python": "pyright",
+    "lint": "biome check --error-on-warnings src && uv run --locked ruff check && uv run --locked ruff format --check",
+    "test": "node --test src/controls.test.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
     "@types/node": "22.20.5",
     "pyright": "1.1.414",
     "typescript": "5.9.3"

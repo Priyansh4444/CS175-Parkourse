@@ -1,5 +1,5 @@
 {
-  "include": ["scripts"],
+  "include": ["scripts", "parkour"],
   "pythonVersion": "3.11",
   "typeCheckingMode": "strict"
 }

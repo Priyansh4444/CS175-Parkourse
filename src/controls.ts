@@ -1,7 +1,5 @@
 import { createInterface } from "node:readline";
 
-export const TICKS_PER_ACTION = 2;
-
 const actions = {
   idle: [],
   walk: ["forward"],
@@ -13,54 +11,94 @@ const actions = {
 } as const;
 
 type Action = keyof typeof actions;
-export type Button = (typeof actions)[Action][number];
-export type Vec = [x: number, y: number, z: number];
+type Button = (typeof actions)[Action][number];
+type Vec = readonly [x: number, y: number, z: number];
 export type Frame = { position: Vec; velocity: Vec; on_ground: boolean };
+export type ActionFrames = readonly [Frame, Frame];
 
-export interface Player {
+type Request =
+  | { op: "reset"; start: Vec; yaw: number }
+  | { op: "step"; action: Action };
+
+type Reply = { result: Frame | ActionFrames } | { error: string };
+
+interface Player {
   reset(start: Vec, yaw: number): Promise<Frame>;
-  step(buttons: readonly Button[], ticks: number): Promise<Frame[]>;
+  step(buttons: readonly Button[]): Promise<ActionFrames>;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function isPosition(value: unknown): value is Vec {
-  return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    isFiniteNumber(value[0]) &&
+    isFiniteNumber(value[1]) &&
+    isFiniteNumber(value[2])
+  );
 }
 
-async function handle(player: Player, message: unknown) {
-  if (typeof message !== "object" || message === null) {
+function isAction(value: unknown): value is Action {
+  return typeof value === "string" && Object.hasOwn(actions, value);
+}
+
+function parseRequest(line: string): Request {
+  const message: unknown = JSON.parse(line);
+  if (
+    typeof message !== "object" ||
+    message === null ||
+    Array.isArray(message)
+  ) {
     throw new Error("Expected a JSON object");
   }
 
-  const request = message as Record<string, unknown>;
-  if (request.op === "reset") {
-    if (!isPosition(request.start) || typeof request.yaw !== "number" || !Number.isFinite(request.yaw)) {
+  if ("op" in message && message.op === "reset") {
+    if (
+      !("start" in message) ||
+      !isPosition(message.start) ||
+      !("yaw" in message) ||
+      !isFiniteNumber(message.yaw)
+    ) {
       throw new Error("reset requires a finite [x, y, z] start and yaw");
     }
-    return player.reset(request.start, request.yaw);
+    return { op: "reset", start: message.start, yaw: message.yaw };
   }
-  if (request.op === "step") {
-    const action = request.action;
-    if (typeof action !== "string" || !Object.hasOwn(actions, action)) {
+  if ("op" in message && message.op === "step") {
+    const action = "action" in message ? message.action : undefined;
+    if (!isAction(action)) {
       throw new Error(`Unknown action: ${String(action)}`);
     }
-    return player.step(actions[action as Action], TICKS_PER_ACTION);
+    return { op: "step", action };
   }
   throw new Error("Expected op reset or step");
+}
+
+async function handle(player: Player, line: string): Promise<Reply> {
+  try {
+    const request = parseRequest(line);
+    switch (request.op) {
+      case "reset":
+        return { result: await player.reset(request.start, request.yaw) };
+      case "step":
+        return { result: await player.step(actions[request.action]) };
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export async function serve(
   player: Player,
   input: NodeJS.ReadableStream = process.stdin,
   output: NodeJS.WritableStream = process.stdout,
-) {
+): Promise<void> {
   const lines = createInterface({ input, crlfDelay: Infinity });
 
   for await (const line of lines) {
-    try {
-      const result = await handle(player, JSON.parse(line));
-      output.write(JSON.stringify({ result }) + "\n");
-    } catch (error) {
-      output.write(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }) + "\n");
-    }
+    const reply = await handle(player, line);
+    output.write(`${JSON.stringify(reply)}\n`);
   }
 }

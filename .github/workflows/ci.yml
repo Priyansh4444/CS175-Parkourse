@@ -8,9 +8,12 @@ on:
 permissions:
   contents: read
 
+env:
+  UV_PYTHON: '3.11'
+
 jobs:
   types:
-    name: Type checks
+    name: Lint, types, and protocol test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -18,12 +21,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: '3.11'
+          version: '0.11.7'
       - run: npm ci
       - run: npm run check
-      - run: bash -n scripts/headless && bash -n scripts/headful
+      - run: shellcheck scripts/headless scripts/headful
 
   minecraft:
     name: Headless Minecraft (${{ matrix.os }})
@@ -39,14 +42,14 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: '3.11'
+          version: '0.11.7'
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
       - run: npm ci
-      - run: python scripts/smoke.py
+      - run: uv run --locked python scripts/smoke.py
         env:
           MINECRAFT_EULA: 'true'
