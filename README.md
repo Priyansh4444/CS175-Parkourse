@@ -13,13 +13,19 @@ A course supplies the next platform. The controller holds one of seven actions f
 
 ## Setup
 
-Use Bash on macOS or Linux, or Git Bash on Windows. Install Node.js 22.18+, Java 25, and the [Minecraft Java 26.1.2 server JAR](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1-2). Run `npm ci` from the repository root. Install Python 3.11+ if you want to run the smoke test.
+Use Bash on macOS or Linux, or Git Bash on Windows.
+
+- [Node.js 22.18+ with npm](https://nodejs.org/en/download)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) for the Python smoke test
+- Java 25 and the [Minecraft Java 26.1.2 server JAR](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1-2)
+
+Run `npm ci` from the repository root.
 
 ## Run Minecraft
 
 Headless runs the server without a game window. Headful lets you watch in the graphical Minecraft client.
 
-1. Read the [Minecraft EULA](https://www.minecraft.net/eula). If you accept it, run `MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar`. Wait for `Done`. Set `JAVA` to a Java 25 binary if needed.
+1. Run `MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar`. Wait for `Done`. Set `JAVA` to a Java 25 binary if needed.
 2. Run the controller in a second terminal. This example uses the default flat world. For a course, use its start from the table below.
 
    ```sh
@@ -57,7 +63,7 @@ The server copies each world to its own directory under `~/.local/share/parkours
 
 Run `npm run check` for the TypeScript and Python type checks. Run either one with `npm run check:ts` or `npm run check:python`.
 
-After accepting the Minecraft EULA, run `MINECRAFT_EULA=true python3 scripts/smoke.py /path/to/server.jar` to test a save copy, jump and reset. In Windows Git Bash, use `python` in place of `python3`. The smoke test uses temporary files. GitHub Actions runs it on Linux, macOS and Windows.
+Run the smoke test with `MINECRAFT_EULA=true uv run --no-project --python 3.11 python scripts/smoke.py /path/to/server.jar`. GitHub Actions runs it on Linux, macOS and Windows.
 
 ## Layout
 
