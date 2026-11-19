@@ -1,0 +1,7 @@
+{
+  "name": "cs175-parkourse",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18.0" },
+  "dependencies": { "mineflayer": "4.39.0" }
+}

@@ -9,3 +9,22 @@ A course supplies the next platform. The controller holds one of seven actions f
 - Set up the observations for learning: distance and height to the next platform, forward and vertical speed, and ground contact.
 - Define rewards, episode endings, and the Q-learning policy.
 - Evaluate on held-out jumps and courses.
+
+## Run Minecraft
+
+Install Node.js 22.18+, Java 25, and the [Minecraft Java 26.1.2 server JAR](https://www.minecraft.net/en-us/article/minecraft-java-edition-26-1-2). Run `npm ci`.
+
+1. Read the [Minecraft EULA](https://www.minecraft.net/eula). If you accept it, run `MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar`. Wait for `Done`. Set `JAVA` to a Java 25 binary if needed.
+2. Run the controller in a second terminal. This example uses the default flat world.
+
+   ```sh
+   node src/minecraft.ts <<'JSON'
+   {"op":"reset","start":[0.5,-60,0.5],"yaw":0}
+   {"op":"step","action":"run_jump"}
+   JSON
+   ```
+
+   Reset returns one frame. Each action returns two frames with position, velocity, and ground contact. Actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, and `sneak`.
+3. To watch, run `./scripts/headful <prism-instance-id>` with a Minecraft 26.1.2 [Prism Launcher instance](https://prismlauncher.org/wiki/getting-started/command-line-interface/), or join `127.0.0.1:25566` from Minecraft Java. In the server console, use `gamemode spectator YourName` to fly around. Use `spectate ParkourseBot YourName` once the bot is connected to follow it. Keep the bot connected to send actions by hand with `node src/minecraft.ts`, one JSON request per line.
+
+The server uses offline mode on loopback. Set `PARKOURSE_PORT` consistently in all terminals to change the port. The server saves its files under `~/.local/share/parkourse/server` by default. Type `stop` in its console to shut down.

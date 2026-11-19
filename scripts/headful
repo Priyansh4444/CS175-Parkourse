@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    printf 'Usage: %s <Prism Launcher instance ID>\n' "$0" >&2
+    exit 2
+fi
+
+exec prismlauncher --launch "$1" --server "127.0.0.1:${PARKOURSE_PORT:-25566}"
