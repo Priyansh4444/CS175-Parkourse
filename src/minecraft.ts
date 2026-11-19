@@ -1,4 +1,3 @@
-import { once } from "node:events";
 import mineflayer from "mineflayer";
 import { serve, type Frame } from "./controls.ts";
 
@@ -18,7 +17,9 @@ const bot = mineflayer.createBot({
 });
 
 let corrections = 0;
-bot.on("forcedMove", () => corrections++);
+bot.on("forcedMove", () => {
+  corrections++;
+});
 bot.on("error", (error) => {
   console.error(error.message);
   process.exitCode = 1;
@@ -67,7 +68,13 @@ bot.once("end", (reason) => {
 });
 
 try {
-  await once(bot, "spawn");
+  await new Promise<void>((resolve, reject) => {
+    bot.once("error", reject);
+    bot.once("spawn", () => {
+      bot.off("error", reject);
+      resolve();
+    });
+  });
   await bot.waitForChunksToLoad();
   bot.physicsEnabled = false;
   console.error("ParkourseBot ready");
