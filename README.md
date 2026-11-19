@@ -12,32 +12,7 @@ Use Bash on Linux or macOS, or Git Bash on Windows. Install these tools.
 
 Run `npm ci` from the repo root.
 
-## Run the server and bot
-
-Start Minecraft headless (without a game window).
-
-```sh
-MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar
-```
-
-Wait for `Done`. In another terminal, run `node src/minecraft.ts` and paste these requests, one per line.
-
-```json
-{"op":"reset","start":[0.5,-60,0.5],"yaw":0}
-{"op":"step","action":"run_jump"}
-```
-
-Each action runs for two ticks and returns position, velocity, and ground contact for each tick. The actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, and `sneak`.
-
-Set `JAVA` to your Java 25 binary if needed. The server uses offline mode on `127.0.0.1:25566`. To change the port, set `PARKOURSE_PORT` in each terminal. Type `stop` in the server console to shut it down.
-
-## Watch in Minecraft
-
-Join `127.0.0.1:25566` in Minecraft Java 26.1.2, or launch a configured [Prism instance](https://prismlauncher.org/wiki/getting-started/command-line-interface/) with `./scripts/headful YOUR_INSTANCE_ID`.
-
-Keep the bot terminal open. In the server console, run `gamemode spectator YourName` to fly around, then `spectate ParkourseBot YourName` to follow the bot.
-
-## Course maps
+## Run a course map
 
 Unzip `maps.zip` outside the repo. Pass the closed world folder containing `level.dat` to the server.
 
@@ -46,15 +21,25 @@ unzip /path/to/maps.zip -d "$HOME/parkourse-maps"
 MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar "$HOME/parkourse-maps/Map 1"
 ```
 
-Use the map's start coordinates in the reset request. All three maps use yaw `0`.
+Wait for `Done`, then run `node src/minecraft.ts` in another terminal. Paste the reset request for the world you loaded.
 
-| Folder | Reset start |
+| World folder | Reset request |
 | --- | --- |
-| `Map 1` | `[19.5,-7,10.5]` |
-| `map 2` | `[4.5,-5,-8.5]` |
-| `MAP 3` | `[-1.5,50,5.5]` |
+| `Map 1` | `{"op":"reset","start":[19.5,-7,10.5],"yaw":0}` |
+| `map 2` | `{"op":"reset","start":[4.5,-5,-8.5],"yaw":0}` |
+| `MAP 3` | `{"op":"reset","start":[-1.5,50,5.5],"yaw":0}` |
 
-Local server files live under `~/.local/share/parkourse/`. The server plays on a copy of the map. Set `PARKOURSE_RUN_DIR` to an unused folder for a fresh copy.
+Paste `{"op":"step","action":"run_jump"}` to test one action. The bot takes actions you send it. Routing is a TODO.
+
+Each action runs for two ticks and returns position, velocity, and ground contact for each tick. The actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, and `sneak`.
+
+The headless server runs without a game window and plays on a copy of the map. Set `JAVA` to your Java 25 binary if needed. Set `PARKOURSE_RUN_DIR` to an unused folder for a fresh copy. Set `PARKOURSE_PORT` in each terminal to change the default port. Type `stop` in the server console before switching maps.
+
+## Watch in Minecraft
+
+Join `127.0.0.1:25566` in Minecraft Java 26.1.2, or launch a configured [Prism instance](https://prismlauncher.org/wiki/getting-started/command-line-interface/) with `./scripts/headful YOUR_INSTANCE_ID`.
+
+Keep the bot terminal open. In the server console, run `gamemode spectator YourName` to fly around, then `spectate ParkourseBot YourName` to follow the bot.
 
 ## Checks
 
@@ -69,6 +54,7 @@ GitHub Actions runs the TypeScript and Python checks and tests headless Minecraf
 
 - Define the core reward math and when an episode ends.
 - Select the learning observations, implement Q-learning, and evaluate on held-out jumps and courses.
+- Add routing between platforms (try a DQN for routing).
 
 ## Layout
 
