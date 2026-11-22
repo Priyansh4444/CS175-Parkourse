@@ -77,7 +77,9 @@ def distance_to(frame: Frame, target: Platform) -> float:
     return hypot(x - center_x, z - center_z)
 
 
-def reward(prev: Frame, action: str, next: Frame, target: Platform, steps: int) -> float:
+def reward(
+    prev: Frame, action: str, next: Frame, target: Platform, steps: int
+) -> float:
     """Score one transition (prev --action--> next) toward the target."""
     total = STEP_PENALTY
     result = outcome(next, target, steps)
