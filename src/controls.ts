@@ -8,23 +8,31 @@ const actions = {
   run_jump: ["forward", "sprint", "jump"],
   back: ["back"],
   sneak: ["sneak"],
+  left: ["left"],
+  right: ["right"],
+  run_left: ["forward", "left", "sprint"],
 } as const;
 
 type Action = keyof typeof actions;
 type Button = (typeof actions)[Action][number];
 type Vec = readonly [x: number, y: number, z: number];
 export type Frame = { position: Vec; velocity: Vec; on_ground: boolean };
-export type ActionFrames = readonly [Frame, Frame];
+export type ActionFrames = readonly [Frame] | readonly [Frame, Frame];
+type StepTicks = 1 | 2;
 
 type Request =
   | { op: "reset"; start: Vec; yaw: number }
-  | { op: "step"; action: Action; yaw?: number };
+  | { op: "step"; action: Action; yaw?: number; ticks: StepTicks };
 
 type Reply = { result: Frame | ActionFrames } | { error: string };
 
 interface Player {
   reset(start: Vec, yaw: number): Promise<Frame>;
-  step(buttons: readonly Button[], yaw?: number): Promise<ActionFrames>;
+  step(
+    buttons: readonly Button[],
+    yaw: number | undefined,
+    ticks: StepTicks,
+  ): Promise<ActionFrames>;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -71,13 +79,17 @@ function parseRequest(line: string): Request {
     if (!isAction(action)) {
       throw new Error(`Unknown action: ${String(action)}`);
     }
+    const ticks = "ticks" in message ? message.ticks : 2;
+    if (ticks !== 1 && ticks !== 2) {
+      throw new Error("step ticks must be 1 or 2");
+    }
     if ("yaw" in message) {
       if (!isFiniteNumber(message.yaw)) {
         throw new Error("step yaw must be a finite number");
       }
-      return { op: "step", action, yaw: message.yaw };
+      return { op: "step", action, yaw: message.yaw, ticks };
     }
-    return { op: "step", action };
+    return { op: "step", action, ticks };
   }
   throw new Error("Expected op reset or step");
 }
@@ -90,7 +102,11 @@ async function handle(player: Player, line: string): Promise<Reply> {
         return { result: await player.reset(request.start, request.yaw) };
       case "step":
         return {
-          result: await player.step(actions[request.action], request.yaw),
+          result: await player.step(
+            actions[request.action],
+            request.yaw,
+            request.ticks,
+          ),
         };
     }
   } catch (error) {
