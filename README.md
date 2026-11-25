@@ -24,6 +24,7 @@ Get the shared `maps.zip` from the project team and unzip it outside the repo. P
 ```sh
 unzip /path/to/maps.zip -d "$HOME/parkourse-maps"
 MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar "$HOME/parkourse-maps/Map 1"
+MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 2 /path/to/server.jar "$HOME/parkourse-maps/map 2"
 ```
 
 Wait for `Done`, then run `node src/minecraft.ts` in another terminal. Paste the reset request for the world you loaded.
@@ -50,15 +51,16 @@ uv run --locked python -m parkour.train --map 1 --episodes 40
 
 Use `--map 2` with `map 2` or `--map 3` with `MAP 3`. Each attempt resets to the course start and trains toward its first landing platform. The command prints each attempt's result. The Q-table stays in memory for the run. Saving it and evaluating on held-out jumps are tracked in [#9](https://github.com/Priyansh4444/CS175-Parkourse/issues/9).
 
-## Train and run all of Map 1 headless
+## Run a full course headless
 
-Use the original `Map 1` folder from `maps.zip`. This command starts and stops its own server on a temporary copy of the map. It disables fall damage on that copy to match the demonstration.
+Use the original course folders from `maps.zip`. This command starts and stops its own server on a temporary copy of the map. It disables fall damage on that copy to match the demonstration.
 
 ```sh
 MINECRAFT_EULA=true uv run --locked python -m parkour.full_course /path/to/server.jar "$HOME/parkourse-maps/Map 1"
+MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 2 /path/to/server.jar "$HOME/parkourse-maps/map 2"
 ```
 
-The trainer fits a course-specific policy from a recorded successful run. `parkour/maps/map1-platforms.csv` lists the landing order, and `parkour/maps/map1-demonstration.csv` records the states, actions, and headings. The bot turns automatically, resets once, and reports each landing as it runs. This run measures completion on the demonstrated course. Use the first-jump command above to train with exploratory tabular Q-learning.
+The trainer fits a course-specific policy from a recorded successful run. Each course has two CSVs in `parkour/maps/`. One lists the landings in order. The other records the demonstrated states, actions, and headings. The bot turns automatically, resets once, and reports each landing as it runs. This run measures completion on the demonstrated course. Use the first-jump command above to train with exploratory tabular Q-learning.
 
 ## Watch in Minecraft
 
@@ -90,6 +92,6 @@ The first command runs lint, type checks, and the bot protocol test. The second 
 | `scripts/headless` | Starts the local server and optionally copies in a map |
 | `scripts/headful` | Opens a Prism client on that server |
 | `node src/minecraft.ts` | Reads reset and movement requests and returns raw player state |
-| `python -m parkour.full_course` | Fits a demonstration policy and runs all of Map 1 headless |
+| `python -m parkour.full_course` | Fits a demonstration policy and runs the course headless |
 | `scripts/smoke.py` | Checks the world copy, jump, and reset in a disposable server |
 | `npm run check` | Runs lint, strict type checks, and the protocol test |

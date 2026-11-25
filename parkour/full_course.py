@@ -1,4 +1,4 @@
-"""Fit a Map 1 policy from a demonstration and run it on the original world."""
+"""Fit a course policy from a demonstration and run it on the supplied world."""
 
 import argparse
 import csv
@@ -33,6 +33,7 @@ class Decision:
 
 
 class Options(argparse.Namespace):
+    map: int
     jar: Path
     world: Path
 
@@ -157,7 +158,7 @@ def wait_for_log(server: subprocess.Popen[str], log: Path, line: str) -> None:
 
 @contextmanager
 def headless_server(jar: Path, world: Path) -> Generator[dict[str, str], None, None]:
-    with TemporaryDirectory(prefix="parkourse-map1-") as folder:
+    with TemporaryDirectory(prefix="parkourse-course-") as folder:
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
             port = reserved.getsockname()[1]
@@ -204,14 +205,16 @@ def headless_server(jar: Path, world: Path) -> Generator[dict[str, str], None, N
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--map", type=int, choices=(1, 2), default=1)
     parser.add_argument("jar", type=Path)
     parser.add_argument(
-        "world", type=Path, help="Original Map 1 folder containing level.dat"
+        "world", type=Path, help="Original course folder containing level.dat"
     )
     options = parser.parse_args(namespace=Options())
     try:
-        platforms = load_platforms(DATA / "map1-platforms.csv")
-        policy = fit_policy(DATA / "map1-demonstration.csv", len(platforms) - 1)
+        name = f"map{options.map}"
+        platforms = load_platforms(DATA / f"{name}-platforms.csv")
+        policy = fit_policy(DATA / f"{name}-demonstration.csv", len(platforms) - 1)
         with (
             headless_server(options.jar.resolve(), options.world.resolve()) as env,
             subprocess.Popen(
