@@ -1,22 +1,49 @@
 """Tabular Q-learning for a jump toward a given platform."""
 
+from enum import StrEnum, auto
 from math import floor
 from random import Random
-from typing import Literal
+from typing import NamedTuple
 
 from .rewards import Frame, Outcome, Platform, outcome, reward
 
-Action = Literal["idle", "walk", "run", "walk_jump", "run_jump", "back", "sneak"]
-ACTIONS: tuple[Action, ...] = (
-    "idle",
-    "walk",
-    "run",
-    "walk_jump",
-    "run_jump",
-    "back",
-    "sneak",
-)
-State = tuple[int, int, int, int, int, int, bool]
+
+class Action(StrEnum):
+    """Movement commands sent to the Minecraft controller."""
+
+    IDLE = auto()
+    WALK = auto()
+    RUN = auto()
+    WALK_JUMP = auto()
+    RUN_JUMP = auto()
+    BACK = auto()
+    SNEAK = auto()
+
+
+ACTIONS = tuple(Action)
+POSITION_BINS_PER_BLOCK = 2
+VELOCITY_BINS_PER_BLOCK_PER_TICK = 10
+
+
+class State(NamedTuple):
+    """Discretized target offset, player velocity, and ground contact."""
+
+    target_dx_bin: int
+    """X offset from player to target in half-block bins."""
+    target_dy_bin: int
+    """Vertical offset from the player's feet to the target surface in half-block bins."""
+    target_dz_bin: int
+    """Z offset from player to target in half-block bins."""
+    vx_bin: int
+    """Player X velocity in bins of 0.1 blocks per tick."""
+    vy_bin: int
+    """Player Y velocity in bins of 0.1 blocks per tick."""
+    vz_bin: int
+    """Player Z velocity in bins of 0.1 blocks per tick."""
+    on_ground: bool
+    """Whether the player is touching the ground."""
+
+
 QTable = dict[tuple[State, Action], float]
 
 
@@ -26,14 +53,14 @@ def encode(frame: Frame, target: Platform) -> State:
     vx, vy, vz = frame["velocity"]
     center_x = (target.min_x + target.max_x) / 2
     center_z = (target.min_z + target.max_z) / 2
-    return (
-        floor((center_x - x) * 2),
-        floor((target.top_y - y) * 2),
-        floor((center_z - z) * 2),
-        floor(vx * 10),
-        floor(vy * 10),
-        floor(vz * 10),
-        frame["on_ground"],
+    return State(
+        target_dx_bin=floor((center_x - x) * POSITION_BINS_PER_BLOCK),
+        target_dy_bin=floor((target.top_y - y) * POSITION_BINS_PER_BLOCK),
+        target_dz_bin=floor((center_z - z) * POSITION_BINS_PER_BLOCK),
+        vx_bin=floor(vx * VELOCITY_BINS_PER_BLOCK_PER_TICK),
+        vy_bin=floor(vy * VELOCITY_BINS_PER_BLOCK_PER_TICK),
+        vz_bin=floor(vz * VELOCITY_BINS_PER_BLOCK_PER_TICK),
+        on_ground=frame["on_ground"],
     )
 
 
@@ -67,12 +94,14 @@ def update(
         raise ValueError("alpha must be in (0, 1] and gamma in [0, 1]")
     key = encode(prev, target), action
     result = outcome(next_frame, target, steps)
-    estimate = reward(prev, action, next_frame, target, steps)
+    target_value = reward(prev, action, next_frame, target, steps)
+    # Future actions contribute value only while this episode is still running.
     if result is Outcome.RUNNING:
         next_state = encode(next_frame, target)
-        estimate += gamma * max(
+        best_next_value = max(
             table.get((next_state, choice), 0.0) for choice in ACTIONS
         )
+        target_value += gamma * best_next_value
     old = table.get(key, 0.0)
-    table[key] = old + alpha * (estimate - old)
+    table[key] = old + alpha * (target_value - old)
     return result
