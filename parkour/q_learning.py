@@ -94,7 +94,7 @@ def update(
         raise ValueError("alpha must be in (0, 1] and gamma in [0, 1]")
     key = encode(prev, target), action
     result = outcome(next_frame, target, steps)
-    target_value = reward(prev, action, next_frame, target, steps)
+    target_value = reward(prev, next_frame, target, steps)
     # Future actions contribute value only while this episode is still running.
     if result is Outcome.RUNNING:
         next_state = encode(next_frame, target)

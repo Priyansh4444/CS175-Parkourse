@@ -161,7 +161,7 @@ def run_server(
 ) -> None:
     bash = "bash"
     if sys.platform == "win32":
-        bash = str(Path(os.environ["ProgramFiles"]) / "Git/bin/bash.exe")
+        bash = str(Path(os.environ["PROGRAMFILES"]) / "Git/bin/bash.exe")
     command = [bash, "./scripts/headless", jar.as_posix()]
     if world is not None:
         command.append(world.as_posix())
