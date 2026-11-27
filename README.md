@@ -50,6 +50,16 @@ uv run --locked python -m parkour.train --map 1 --episodes 40
 
 Use `--map 2` with `map 2` or `--map 3` with `MAP 3`. Each attempt resets to the course start and trains toward its first landing platform. The command prints each attempt's result. The Q-table stays in memory for the run. Saving it and evaluating on held-out jumps are tracked in [#9](https://github.com/Priyansh4444/CS175-Parkourse/issues/9).
 
+## Train and run all of Map 1 headless
+
+Use the original `Map 1` folder from `maps.zip`. This command starts and stops its own server on a temporary copy of the map. It disables fall damage on that copy to match the demonstration.
+
+```sh
+MINECRAFT_EULA=true uv run --locked python -m parkour.full_course /path/to/server.jar "$HOME/parkourse-maps/Map 1"
+```
+
+The trainer fits a course-specific policy from a recorded successful run. `parkour/maps/map1-platforms.csv` lists the landing order, and `parkour/maps/map1-demonstration.csv` records the states, actions, and headings. The bot turns automatically, resets once, and reports each landing as it runs. This run measures completion on the demonstrated course. Use the first-jump command above to train with exploratory tabular Q-learning.
+
 ## Watch in Minecraft
 
 Join `127.0.0.1:25566` in Minecraft Java 26.1.2, or launch a configured [Prism instance](https://prismlauncher.org/wiki/getting-started/command-line-interface/) with `./scripts/headful YOUR_INSTANCE_ID`.
@@ -80,5 +90,6 @@ The first command runs lint, type checks, and the bot protocol test. The second 
 | `scripts/headless` | Starts the local server and optionally copies in a map |
 | `scripts/headful` | Opens a Prism client on that server |
 | `node src/minecraft.ts` | Reads reset and movement requests and returns raw player state |
+| `python -m parkour.full_course` | Fits a demonstration policy and runs all of Map 1 headless |
 | `scripts/smoke.py` | Checks the world copy, jump, and reset in a disposable server |
 | `npm run check` | Runs lint, strict type checks, and the protocol test |
