@@ -40,6 +40,16 @@ Each action returns two client physics frames with position in blocks, velocity 
 
 The headless server runs without a game window and plays on a copy of the map. Set `JAVA` to your Java 25 binary if needed. Set `PARKOURSE_RUN_DIR` to an unused folder for a fresh copy. Set `PARKOURSE_PORT` in each terminal to change the default port. Type `stop` in the server console before switching maps.
 
+## Train on a course map
+
+Start the server with the world folder above. Wait for `Done`, then run this in a second terminal with any manual bot session closed.
+
+```sh
+uv run --locked python -m parkour.train --map 1 --episodes 40
+```
+
+Use `--map 2` with `map 2` or `--map 3` with `MAP 3`. Each attempt resets to the course start and trains toward its first landing platform. The command prints each attempt's result. The Q-table stays in memory for the run. Saving it and evaluating on held-out jumps are tracked in [#9](https://github.com/Priyansh4444/CS175-Parkourse/issues/9).
+
 ## Watch in Minecraft
 
 Join `127.0.0.1:25566` in Minecraft Java 26.1.2, or launch a configured [Prism instance](https://prismlauncher.org/wiki/getting-started/command-line-interface/) with `./scripts/headful YOUR_INSTANCE_ID`.
@@ -55,15 +65,13 @@ MINECRAFT_EULA=true uv run --locked python scripts/smoke.py /path/to/server.jar
 
 The first command runs lint, type checks, and the bot protocol test. The second starts a disposable Minecraft server, tests a jump, and checks that reset restores the starting position. CI runs the smoke test on Linux, macOS, and Windows.
 
-## Where to add training
+## Learning code
 
-1. Add episode endings and the core reward math in [parkour/rewards.py](parkour/rewards.py). Start with the previous state, action, next state, and target platform.
-2. Add the training loop in [parkour/q_learning.py](parkour/q_learning.py). Turn observations into Q-table keys, update the table during training, and freeze it during evaluation.
-3. Add next-platform selection in [parkour/routing.py](parkour/routing.py) (try a DQN for routing). Give the selected platform to the jump policy.
-
-Have Python start `node src/minecraft.ts` as a subprocess and read one JSON reply per request. Use the reset reply as the initial state and the last frame from each step as the next state. See `scripts/smoke.py` for a working subprocess example.
-
-Once the trainer has an entry point, run it from the repo root with `uv run --locked python -m parkour.q_learning`.
+- `parkour/courses.py` holds the starting poses and first landing platforms.
+- `parkour/rewards.py` scores each action and decides when an attempt ends.
+- `parkour/q_learning.py` bins observations and updates the Q-table.
+- `parkour/train.py` drives the Minecraft bot and runs the training loop.
+- `parkour/routing.py` is the TODO for choosing the next platform (try a DQN).
 
 ## Scripts
 
