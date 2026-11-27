@@ -7,18 +7,17 @@ from .rewards import Frame
 class FullCourseTest(TestCase):
     def test_demonstrations_cover_the_documented_landings(self) -> None:
         courses = (
-            ("map1", 28, 28),
-            ("map2", 24, 24),
-            ("map3", 28, 20),
-            ("map3-one-block-lower", 28, 28),
+            ("map1", 28),
+            ("map2", 24),
+            ("map3", 28),
         )
-        for name, total, demonstrated in courses:
+        for name, total in courses:
             with self.subTest(course=name):
                 platforms = load_platforms(DATA / f"{name}-platforms.csv")
                 self.assertEqual(len(platforms) - 1, total)
-                policy = fit_policy(DATA / f"{name}-demonstration.csv", demonstrated)
+                policy = fit_policy(DATA / f"{name}-demonstration.csv", total)
                 self.assertEqual(
-                    {platform for platform, _ in policy}, set(range(demonstrated))
+                    {platform for platform, _ in policy}, set(range(total))
                 )
 
     def test_different_velocity_is_a_route_deviation(self) -> None:

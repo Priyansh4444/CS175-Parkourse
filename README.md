@@ -60,11 +60,7 @@ MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 2 /path/
 MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 3 /path/to/server.jar "$HOME/parkourse-maps/MAP 3"
 ```
 
-Map 1 covers 28 jumps and Map 2 covers 24. The original Map 3 demonstration covers 20 of 28 jumps. Jump 21 has a five-block gap on the recorded route, which exceeds the estimated reach with normal movement. To run all 28 on Map 3, use the same world folder and lower landing 21 and its sign by one block on the temporary copy.
-
-```sh
-MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 3 --lower-jump-21 /path/to/server.jar "$HOME/parkourse-maps/MAP 3"
-```
+Map 1 covers 28 jumps, Map 2 covers 24, and Map 3 covers 28. Jump 21 on Map 3 is a five-block gap, past the estimated reach of a normal jump. The Map 3 command lowers that landing and its sign by one block on the temporary copy, then runs the full recording. The folder from `maps.zip` is left as it is.
 
 The runner fits a course-specific policy from a recorded demonstration. Each course or variant has two CSVs in `parkour/maps/`. One lists the landings in order. The other records the demonstrated states, actions, and headings. The bot turns automatically, resets once, and reports each landing as it runs. This run measures completion on the demonstrated course. Use the first-jump command above to train with exploratory tabular Q-learning.
 
