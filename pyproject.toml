@@ -20,6 +20,7 @@ select = [
     "I",   # import order
     "UP",  # Python 3.11 idioms
     "ANN", # function annotations
+    "ARG", # unused arguments
     "B",   # common bugs
     "C4",  # comprehensions
     "SIM", # simplifications
