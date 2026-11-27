@@ -112,11 +112,14 @@ try {
       return resetFrame;
     },
 
-    async step(buttons) {
+    async step(buttons, yaw) {
       if (corrections !== lastReset) {
         throw new Error(
           "Minecraft corrected the bot's position. Reset before continuing.",
         );
+      }
+      if (yaw !== undefined) {
+        await bot.look(Math.PI - ((yaw % 360) * Math.PI) / 180, 0, true);
       }
       for (const button of buttons) bot.setControlState(button, true);
       let first: Frame | undefined;

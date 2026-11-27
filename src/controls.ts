@@ -18,13 +18,13 @@ export type ActionFrames = readonly [Frame, Frame];
 
 type Request =
   | { op: "reset"; start: Vec; yaw: number }
-  | { op: "step"; action: Action };
+  | { op: "step"; action: Action; yaw?: number };
 
 type Reply = { result: Frame | ActionFrames } | { error: string };
 
 interface Player {
   reset(start: Vec, yaw: number): Promise<Frame>;
-  step(buttons: readonly Button[]): Promise<ActionFrames>;
+  step(buttons: readonly Button[], yaw?: number): Promise<ActionFrames>;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -71,6 +71,12 @@ function parseRequest(line: string): Request {
     if (!isAction(action)) {
       throw new Error(`Unknown action: ${String(action)}`);
     }
+    if ("yaw" in message) {
+      if (!isFiniteNumber(message.yaw)) {
+        throw new Error("step yaw must be a finite number");
+      }
+      return { op: "step", action, yaw: message.yaw };
+    }
     return { op: "step", action };
   }
   throw new Error("Expected op reset or step");
@@ -83,7 +89,9 @@ async function handle(player: Player, line: string): Promise<Reply> {
       case "reset":
         return { result: await player.reset(request.start, request.yaw) };
       case "step":
-        return { result: await player.step(actions[request.action]) };
+        return {
+          result: await player.step(actions[request.action], request.yaw),
+        };
     }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
