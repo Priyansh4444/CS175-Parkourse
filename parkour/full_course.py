@@ -202,7 +202,7 @@ def headless_server(
         env = dict(os.environ, PARKOURSE_PORT=str(port), PARKOURSE_RUN_DIR=folder)
         bash = "bash"
         if sys.platform == "win32":
-            bash = str(Path(os.environ["ProgramFiles"]) / "Git/bin/bash.exe")
+            bash = str(Path(os.environ["PROGRAMFILES"]) / "Git/bin/bash.exe")
         log = Path(folder) / "server.log"
         with (
             log.open("w", encoding="utf8") as output,
