@@ -13,7 +13,7 @@ env:
 
 jobs:
   types:
-    name: Lint, types, and protocol test
+    name: Lint, types, and unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -26,6 +26,7 @@ jobs:
           version: '0.11.7'
       - run: npm ci
       - run: npm run check
+      - run: uv run --locked python -m unittest discover
       - run: shellcheck scripts/headless scripts/headful
 
   minecraft:
