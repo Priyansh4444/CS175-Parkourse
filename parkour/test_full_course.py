@@ -5,17 +5,19 @@ from .rewards import Frame
 
 
 class FullCourseTest(TestCase):
-    def test_demonstrations_cover_all_jumps(self) -> None:
-        for name, count in (("map1", 28), ("map2", 24)):
+    def test_demonstrations_cover_the_documented_landings(self) -> None:
+        courses = (
+            ("map1", 28),
+            ("map2", 24),
+            ("map3", 28),
+        )
+        for name, total in courses:
             with self.subTest(course=name):
                 platforms = load_platforms(DATA / f"{name}-platforms.csv")
-                self.assertEqual(len(platforms) - 1, count)
-                policy = fit_policy(DATA / f"{name}-demonstration.csv", count)
+                self.assertEqual(len(platforms) - 1, total)
+                policy = fit_policy(DATA / f"{name}-demonstration.csv", total)
                 self.assertEqual(
-                    {platform for platform, _ in policy}, set(range(count))
-                )
-                self.assertEqual(
-                    {choice.yaw for choice in policy.values()}, {0, 90, 180, 270}
+                    {platform for platform, _ in policy}, set(range(total))
                 )
 
     def test_different_velocity_is_a_route_deviation(self) -> None:

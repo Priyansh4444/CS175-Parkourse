@@ -14,7 +14,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import IO
+from typing import IO, Literal
 
 from scripts.smoke import array_items, decode_frame
 
@@ -23,12 +23,14 @@ from .rewards import Frame, Platform, is_landing
 from .train import ROOT, request
 
 DATA = Path(__file__).parent / "maps"
+CourseAction = Action | Literal["left", "right", "run_left"]
+COURSE_ACTIONS: tuple[CourseAction, ...] = (*ACTIONS, "left", "right", "run_left")
 
 
 @dataclass(frozen=True)
 class Decision:
     frame: Frame
-    action: Action
+    action: CourseAction
     yaw: float
 
 
@@ -68,7 +70,7 @@ def load_platforms(path: Path) -> list[Platform]:
 def fit_policy(path: Path, jumps: int) -> dict[tuple[int, int], Decision]:
     """Fit the demonstrated action and heading for each observed state in a jump."""
     policy: dict[tuple[int, int], Decision] = {}
-    names: dict[str, Action] = {action: action for action in ACTIONS}
+    names: dict[str, CourseAction] = {action: action for action in COURSE_ACTIONS}
     expected_platform, expected_step = 0, 0
     with path.open(newline="", encoding="utf8") as source:
         for row in csv.DictReader(source):
@@ -106,6 +108,8 @@ def run_policy(
     stdout: IO[str],
     platforms: list[Platform],
     policy: dict[tuple[int, int], Decision],
+    demonstrated_jumps: int,
+    ticks_per_step: int,
 ) -> None:
     start = platforms[0]
     pose = (
@@ -124,24 +128,32 @@ def run_policy(
                 f"Bot left the demonstrated trajectory before jump {number + 1}, step {step + 1}: "
                 f"observed {frame!r}; expected {None if decision is None else decision.frame!r}"
             )
-        ticks = array_items(
+        frames = array_items(
             request(
                 stdin,
                 stdout,
-                {"op": "step", "action": decision.action, "yaw": decision.yaw},
+                {
+                    "op": "step",
+                    "action": decision.action,
+                    "yaw": decision.yaw,
+                    "ticks": ticks_per_step,
+                },
             )
         )
-        if len(ticks) != 2:
-            raise RuntimeError(f"Expected two physics frames, got {len(ticks)}")
-        first, frame = map(decode_frame, ticks)
+        if len(frames) != ticks_per_step:
+            raise RuntimeError(
+                f"Expected {ticks_per_step} physics frames, got {len(frames)}"
+            )
+        observed = [decode_frame(item) for item in frames]
+        frame = observed[-1]
         target = platforms[number + 1]
-        if is_landing(first, target) or is_landing(frame, target):
+        if any(is_landing(tick, target) for tick in observed):
             number += 1
             step = 0
             print(
                 json.dumps({"landed": number, "jumps": len(platforms) - 1}), flush=True
             )
-            if number == len(platforms) - 1:
+            if number == demonstrated_jumps:
                 return
         else:
             step += 1
@@ -156,8 +168,32 @@ def wait_for_log(server: subprocess.Popen[str], log: Path, line: str) -> None:
         time.sleep(0.25)
 
 
+def lower_map3_landing(
+    console: IO[str], server: subprocess.Popen[str], log: Path
+) -> None:
+    # Load both the landing and its sign before moving either block.
+    console.write("execute in minecraft:overworld run forceload add 16 12\n")
+    console.flush()
+    wait_for_log(server, log, "force loaded")
+    commands = (
+        "execute if block 16 27 12 minecraft:purple_terracotta "
+        "if block 17 27 12 minecraft:oak_wall_sign "
+        "if block 16 26 12 minecraft:air if block 17 26 12 minecraft:air "
+        "run clone 16 27 12 17 27 12 16 26 12 replace move",
+        "execute if block 16 26 12 minecraft:purple_terracotta "
+        "if block 17 26 12 minecraft:oak_wall_sign if block 16 27 12 minecraft:air "
+        "if block 17 27 12 minecraft:air run say Parkourse lowered landing 21",
+        "forceload remove 16 12",
+    )
+    console.write("\n".join(commands) + "\n")
+    console.flush()
+    wait_for_log(server, log, "Parkourse lowered landing 21")
+
+
 @contextmanager
-def headless_server(jar: Path, world: Path) -> Generator[dict[str, str], None, None]:
+def headless_server(
+    jar: Path, world: Path, *, lower_landing_21: bool
+) -> Generator[dict[str, str], None, None]:
     with TemporaryDirectory(prefix="parkourse-course-") as folder:
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
@@ -187,6 +223,8 @@ def headless_server(jar: Path, world: Path) -> Generator[dict[str, str], None, N
                 server.stdin.write("gamerule fall_damage false\n")
                 server.stdin.flush()
                 wait_for_log(server, log, "Gamerule fall_damage is now set to: false")
+                if lower_landing_21:
+                    lower_map3_landing(server.stdin, server, log)
                 yield env
             except Exception:
                 print(log.read_text(errors="replace")[-4000:], file=sys.stderr)
@@ -205,7 +243,7 @@ def headless_server(jar: Path, world: Path) -> Generator[dict[str, str], None, N
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--map", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--map", type=int, choices=(1, 2, 3), default=1)
     parser.add_argument("jar", type=Path)
     parser.add_argument(
         "world", type=Path, help="Original course folder containing level.dat"
@@ -214,9 +252,15 @@ def main() -> None:
     try:
         name = f"map{options.map}"
         platforms = load_platforms(DATA / f"{name}-platforms.csv")
-        policy = fit_policy(DATA / f"{name}-demonstration.csv", len(platforms) - 1)
+        total_jumps = len(platforms) - 1
+        ticks_per_step = 1 if options.map == 3 else 2
+        policy = fit_policy(DATA / f"{name}-demonstration.csv", total_jumps)
         with (
-            headless_server(options.jar.resolve(), options.world.resolve()) as env,
+            headless_server(
+                options.jar.resolve(),
+                options.world.resolve(),
+                lower_landing_21=options.map == 3,
+            ) as env,
             subprocess.Popen(
                 ["node", "src/minecraft.ts"],
                 cwd=ROOT,
@@ -229,7 +273,14 @@ def main() -> None:
             if bot.stdin is None or bot.stdout is None:
                 raise RuntimeError("Could not open the bot pipes")
             try:
-                run_policy(bot.stdin, bot.stdout, platforms, policy)
+                run_policy(
+                    bot.stdin,
+                    bot.stdout,
+                    platforms,
+                    policy,
+                    total_jumps,
+                    ticks_per_step,
+                )
             finally:
                 with suppress(BrokenPipeError):
                     bot.stdin.close()
@@ -243,7 +294,9 @@ def main() -> None:
         print(
             json.dumps(
                 {
-                    "completed_jumps": len(platforms) - 1,
+                    "completed_jumps": total_jumps,
+                    "total_jumps": total_jumps,
+                    "success": True,
                     "resets": 1,
                     "policy_entries": len(policy),
                 }

@@ -112,7 +112,7 @@ try {
       return resetFrame;
     },
 
-    async step(buttons, yaw) {
+    async step(buttons, yaw, ticks) {
       if (corrections !== lastReset) {
         throw new Error(
           "Minecraft corrected the bot's position. Reset before continuing.",
@@ -130,6 +130,7 @@ try {
           );
         }
         const current = frame();
+        if (ticks === 1) return [current];
         if (first !== undefined) return [first, current];
         first = current;
       });

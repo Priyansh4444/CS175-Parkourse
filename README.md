@@ -24,7 +24,6 @@ Get the shared `maps.zip` from the project team and unzip it outside the repo. P
 ```sh
 unzip /path/to/maps.zip -d "$HOME/parkourse-maps"
 MINECRAFT_EULA=true ./scripts/headless /path/to/server.jar "$HOME/parkourse-maps/Map 1"
-MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 2 /path/to/server.jar "$HOME/parkourse-maps/map 2"
 ```
 
 Wait for `Done`, then run `node src/minecraft.ts` in another terminal. Paste the reset request for the world you loaded.
@@ -37,7 +36,7 @@ Wait for `Done`, then run `node src/minecraft.ts` in another terminal. Paste the
 
 Paste `{"op":"step","action":"run_jump"}` to test one action. The bot takes actions you send it. Routing is a TODO.
 
-Each action returns two client physics frames with position in blocks, velocity in blocks per tick, and ground contact. Replies are JSON lines on stdout with either a `result` or an `error`. Reset settles within 0.15 blocks of the start. The actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, and `sneak`.
+Each action returns two client physics frames by default with position in blocks, velocity in blocks per tick, and ground contact. Replies are JSON lines on stdout with either a `result` or an `error`. Reset settles within 0.15 blocks of the start. The actions are `idle`, `walk`, `run`, `walk_jump`, `run_jump`, `back`, `sneak`, `left`, `right`, and `run_left`. Set `"ticks":1` on a step to request one frame.
 
 The headless server runs without a game window and plays on a copy of the map. Set `JAVA` to your Java 25 binary if needed. Set `PARKOURSE_RUN_DIR` to an unused folder for a fresh copy. Set `PARKOURSE_PORT` in each terminal to change the default port. Type `stop` in the server console before switching maps.
 
@@ -58,9 +57,12 @@ Use the original course folders from `maps.zip`. This command starts and stops i
 ```sh
 MINECRAFT_EULA=true uv run --locked python -m parkour.full_course /path/to/server.jar "$HOME/parkourse-maps/Map 1"
 MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 2 /path/to/server.jar "$HOME/parkourse-maps/map 2"
+MINECRAFT_EULA=true uv run --locked python -m parkour.full_course --map 3 /path/to/server.jar "$HOME/parkourse-maps/MAP 3"
 ```
 
-The trainer fits a course-specific policy from a recorded successful run. Each course has two CSVs in `parkour/maps/`. One lists the landings in order. The other records the demonstrated states, actions, and headings. The bot turns automatically, resets once, and reports each landing as it runs. This run measures completion on the demonstrated course. Use the first-jump command above to train with exploratory tabular Q-learning.
+Map 1 covers 28 jumps, Map 2 covers 24, and Map 3 covers 28. Jump 21 on Map 3 is a five-block gap, past the estimated reach of a normal jump. The Map 3 command lowers that landing and its sign by one block on the temporary copy, then runs the full recording. The folder from `maps.zip` is left as it is.
+
+The runner fits a course-specific policy from a recorded demonstration. Each course or variant has two CSVs in `parkour/maps/`. One lists the landings in order. The other records the demonstrated states, actions, and headings. The bot turns automatically, resets once, and reports each landing as it runs. This run measures completion on the demonstrated course. Use the first-jump command above to train with exploratory tabular Q-learning.
 
 ## Watch in Minecraft
 

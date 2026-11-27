@@ -17,6 +17,7 @@ test("validates requests and keeps serving in order after errors", async () => {
   const input = Readable.from([
     'null\n{"op":"reset","start":[1,2,"3"],"yaw":0}\n',
     '{"op":"step","action":"__proto__"}\n{"op":"reset","start":[1,2,3],"yaw":90}\n',
+    '{"op":"step","action":"run_left","yaw":315,"ticks":1}\n{"op":"step","action":"run_left","ticks":0}\n',
     '{"op":"step","action":"idle"}\n{"op":"step","action":"run_jump","yaw":null}\n{"op":"step","action":"run_jump","yaw":90}',
   ]);
   const replies: unknown[] = [];
@@ -34,7 +35,13 @@ test("validates requests and keeps serving in order after errors", async () => {
         assert.equal(yaw, 90);
         return reset;
       },
-      async step(buttons, yaw) {
+      async step(buttons, yaw, ticks) {
+        if (ticks === 1) {
+          assert.deepEqual(buttons, ["forward", "left", "sprint"]);
+          assert.equal(yaw, 315);
+          return [reset];
+        }
+        assert.equal(ticks, 2);
         if (buttons.length === 0) throw new Error("Physics timed out");
         assert.deepEqual(buttons, ["forward", "sprint", "jump"]);
         assert.equal(yaw, 90);
@@ -50,6 +57,8 @@ test("validates requests and keeps serving in order after errors", async () => {
     { error: "reset requires a finite [x, y, z] start and yaw" },
     { error: "Unknown action: __proto__" },
     { result: reset },
+    { result: [reset] },
+    { error: "step ticks must be 1 or 2" },
     { error: "Physics timed out" },
     { error: "step yaw must be a finite number" },
     { result: [reset, airborne] },
